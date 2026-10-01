@@ -10,7 +10,11 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:#070a24;color:#dfe6ff;
   font-family:'DotGothic16',system-ui,sans-serif;-webkit-user-select:none;user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent}
-canvas#game{position:fixed;inset:0;display:block}
+canvas#game{position:fixed;inset:0;display:block;touch-action:none}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{-webkit-touch-callout:none;overscroll-behavior:none}
+.screen button{touch-action:manipulation}
+#touch *{touch-action:none;-webkit-user-select:none;user-select:none}
 .hidden{display:none!important}
 button{font-family:inherit;color:inherit}
 
@@ -299,7 +303,34 @@ addEventListener('keyup',e=>{keys[e.code]=false;});
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;});
 
 let isTouch=matchMedia('(pointer: coarse)').matches||navigator.maxTouchPoints>0;
-addEventListener('touchstart',()=>{isTouch=true;},{passive:true});
+/* 拡大防止：iOS Safari は user-scalable=no を無視するため、ジェスチャーを直接止める */
+const inGameArea=t=>t instanceof Element&&(t===cvs||!!t.closest('#touch'));
+// スティックと攻撃ボタンを同時に押すと「2本指ピンチ」と誤認されるので、ゲーム画面上のタッチは既定動作を止める
+document.addEventListener('touchstart',e=>{
+  isTouch=true;
+  if(e.touches.length>1||inGameArea(e.target))e.preventDefault();
+},{passive:false});
+document.addEventListener('touchmove',e=>{
+  if(e.touches.length>1||e.scale&&e.scale!==1||inGameArea(e.target))e.preventDefault();
+},{passive:false});
+// 素早い2回タップによる拡大を防ぐ
+let lastTouchEnd=0;
+document.addEventListener('touchend',e=>{
+  const now=Date.now();
+  if(inGameArea(e.target)||now-lastTouchEnd<350)e.preventDefault();
+  lastTouchEnd=now;
+},{passive:false});
+['gesturestart','gesturechange','gestureend'].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
+document.addEventListener('dblclick',e=>e.preventDefault(),{passive:false});
+// 万一拡大されてしまったら倍率を1に戻す
+const vpMeta=document.querySelector('meta[name=viewport]');
+function resetZoom(){
+  if(window.visualViewport&&visualViewport.scale>1.01){
+    const c=vpMeta.content;vpMeta.content=c+',minimum-scale=1';
+    setTimeout(()=>{vpMeta.content=c;},60);
+  }
+}
+if(window.visualViewport)visualViewport.addEventListener('resize',resetZoom);
 const stickEl=$('stick'),knob=$('knob'),fireBtn=$('fireBtn');
 const stick={id:null,x:0,y:0,cx:0,cy:0};let touchFire=false;
 function moveStick(e){
