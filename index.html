@@ -10,7 +10,8 @@
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:#070a24;color:#dfe6ff;
   font-family:'DotGothic16',system-ui,sans-serif;-webkit-user-select:none;user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent}
-canvas#game{position:fixed;inset:0;display:block;touch-action:none}
+#app{position:fixed;left:0;top:0;width:100%;height:100%;overflow:hidden;transform-origin:0 0;touch-action:none}
+canvas#game{position:absolute;inset:0;display:block;touch-action:none}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 body{-webkit-touch-callout:none;overscroll-behavior:none}
 .screen button{touch-action:manipulation}
@@ -81,7 +82,7 @@ h1{font-weight:400;font-size:clamp(42px,9vw,92px);line-height:1;margin:8px 0 14p
 #fireBtn.on{background:rgba(255,84,112,.55)}
 
 /* 結果 */
-#result{display:flex;align-items:center;justify-content:center;background:rgba(7,10,36,.62)}
+#result{touch-action:none;display:flex;align-items:center;justify-content:center;background:rgba(7,10,36,.62)}
 .result-inner{text-align:center;max-width:520px}
 #resTitle{font-weight:400;font-size:clamp(48px,11vw,96px);margin:0 0 10px;color:#fff;text-shadow:4px 3px 0 #ff5470,-4px -3px 0 #4db8ff}
 #resText{font-size:18px;line-height:1.8;margin:0 0 24px;color:#c9d1f4}
@@ -92,6 +93,7 @@ h1{font-weight:400;font-size:clamp(42px,9vw,92px);line-height:1;margin:8px 0 14p
 </style>
 </head>
 <body>
+<div id="app">
 <canvas id="game"></canvas>
 
 <div id="select" class="screen">
@@ -136,6 +138,7 @@ h1{font-weight:400;font-size:clamp(42px,9vw,92px);line-height:1;margin:8px 0 14p
   </div>
 </div>
 
+</div>
 <script>
 (()=>{
 const $=id=>document.getElementById(id);
@@ -255,7 +258,7 @@ SHIPS.forEach((d,i)=>{
 const cvs=$('game'),ctx=cvs.getContext('2d');
 let DPR=1,VW=0,VH=0,zoom=1;
 function resize(){
-  DPR=Math.min(devicePixelRatio||1,2);VW=innerWidth;VH=innerHeight;
+  DPR=Math.min(devicePixelRatio||1,2);VW=document.documentElement.clientWidth||innerWidth;VH=document.documentElement.clientHeight||innerHeight;
   cvs.width=VW*DPR;cvs.height=VH*DPR;cvs.style.width=VW+'px';cvs.style.height=VH+'px';
   zoom=clamp(Math.min(VW,VH)/1050,.36,1.15);
 }
@@ -330,11 +333,22 @@ function resetZoom(){
     setTimeout(()=>{vpMeta.content=c;},60);
   }
 }
-if(window.visualViewport)visualViewport.addEventListener('resize',resetZoom);
+// それでも拡大された場合は、画面全体を見えている範囲に合わせて縮小・移動し、ボタンが隠れないようにする
+const appEl=document.getElementById('app');
+function fitToVisual(){
+  const vv=window.visualViewport;if(!vv)return;
+  if(vv.scale>1.01){
+    appEl.style.transform=`translate(${vv.offsetLeft}px,${vv.offsetTop}px) scale(${1/vv.scale})`;
+  }else appEl.style.transform='';
+}
+if(window.visualViewport){
+  visualViewport.addEventListener('resize',()=>{resetZoom();fitToVisual();});
+  visualViewport.addEventListener('scroll',fitToVisual);
+}
 const stickEl=$('stick'),knob=$('knob'),fireBtn=$('fireBtn');
 const stick={id:null,x:0,y:0,cx:0,cy:0};let touchFire=false;
 function moveStick(e){
-  let dx=e.clientX-stick.cx,dy=e.clientY-stick.cy;const R=55,d=Math.hypot(dx,dy);
+  const zs=window.visualViewport?visualViewport.scale:1;let dx=(e.clientX-stick.cx)*zs,dy=(e.clientY-stick.cy)*zs;const R=55,d=Math.hypot(dx,dy);
   if(d>R){dx*=R/d;dy*=R/d;}stick.x=dx/R;stick.y=dy/R;knob.style.transform=`translate(${dx}px,${dy}px)`;
 }
 stickEl.addEventListener('pointerdown',e=>{
